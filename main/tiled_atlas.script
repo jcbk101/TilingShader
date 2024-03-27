@@ -1,0 +1,70 @@
+go.property("width", 0)
+go.property("height", 0)
+go.property("x", 0)
+go.property("y", 0)
+
+----------------------------------------
+--
+----------------------------------------
+function init(self)
+
+	local tile_size = vmath.vector4()
+	local atlas_size = vmath.vector3()
+	local sprite_size = vmath.vector3()		
+	local pos = go.get_position()
+	local size = nil
+	local texture_ratio = nil
+
+	local path = go.get("#sprite", "image")
+	local texture = go.get("#sprite", "animation")
+	local ts_info = resource.get_atlas(path)
+	local ts_tex_info = resource.get_texture_info(ts_info.texture)
+	local found = nil
+	local x_index = 0
+	local y_index = 0
+	
+	-- Fix positioning in z: Just above sky texture
+	pos.x = self.x
+	pos.y = self.y
+	go.set_position(pos)
+
+	for i = 1, #ts_info.animations do
+		if hash(ts_info.animations[i].id) == texture then
+			tile_size.x = ts_info.animations[i].width
+			tile_size.y = ts_info.animations[i].height
+			atlas_size = vmath.vector3(ts_tex_info.width, ts_tex_info.height, 0)
+			--
+			x_index = (ts_info.geometries[i].uvs[3] / ts_tex_info.width)-- * tile_size.x
+			y_index = -(ts_info.geometries[i].uvs[4] / ts_tex_info.height)-- * tile_size.y	
+			
+			found = true
+			break
+		end
+	end
+
+	if not found then return end
+
+	-- Set the stretched size for proper display and calculations
+	go.set("#sprite", "size.x", self.width )
+	go.set("#sprite", "size.y", self.height )			
+
+	--		
+	sprite_size = vmath.vector3(self.width, self.height, 0)
+	-- X, Y = (FULL_IMAGE_SIZE / TILE_SIZE)
+	-- IE: Image is 4096 x 256, TILE_SIZE = 64x64, X = 4096 / 64 -> Repeated tile images
+	-- texture_ratio basically equals the amount of repeated tiles
+	texture_ratio = vmath.vector3(sprite_size.x / tile_size.x, sprite_size.y / tile_size.y, 1)
+
+	--Set constant in material for texture part to use
+	-- Z, W = (TILE_SIZE / ATLAS_SIZE)
+	-- IE: 4 tiles @ 64px / 256 = .25
+	-- This value is 1 / xx of the atlas row. IE: 1/4 of 4 tiles in a row
+	go.set("#sprite", "ratio", vmath.vector4(texture_ratio.x, texture_ratio.y, tile_size.x / atlas_size.x , tile_size.y / atlas_size.y))
+
+	-- Index to tile
+	go.set("#sprite", "offset", vmath.vector4(x_index, y_index, 0, 0))
+
+	local scale = go.get_scale()																	
+	--Set constant in material
+	go.set("#sprite", "scaler", vmath.vector4(scale.x, scale.y, 1, 1))			
+end
